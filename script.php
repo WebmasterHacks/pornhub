@@ -3,56 +3,126 @@
 require __DIR__ . '/vendor/autoload.php';
 
 use Goutte\Client;
+use Symfony\Component\DomCrawler\Crawler;
 
 class Video {
 
+    /**
+     * @var Client
+     */
     protected $client;
+
+    /**
+     * @var string
+     */
     protected $url;
+
+    /**
+     * @var Crawler
+     */
     protected $crawler;
 
-    public function __construct($client, $url)
+    /**
+     * @var string
+     */
+    protected $title;
+
+    /**
+     * @var array
+     */
+    protected $pornstars;
+
+    /**
+     * @var array
+     */
+    protected $categories;
+
+    /**
+     * @var array
+     */
+    protected $tags;
+
+    /**
+     * @var string
+     */
+    protected $mp4;
+
+    /**
+     * @var bool
+     */
+    protected $parsed = false;
+
+    /**
+     * @param Client $client
+     * @param string $url
+     */
+    public function __construct(Client $client, $url)
     {
         $this->client = $client;
         $this->url = $url;
-        $this->crawler = $crawler = $client->request('GET', $url);
-
-        $this->parseTitle();
-        $this->parsePornstars();
-        $this->parseCategories();
-        $this->parseTags();
-        $this->parseMp4();
     }
 
+    /**
+     * @return string
+     */
     public function getUrl()
     {
         return $this->url;
     }
 
+    /**
+     * @return string
+     */
     public function getTitle()
     {
+        $this->parseIfNeeded();
+
         return $this->title;
     }
 
+    /**
+     * @return array
+     */
     public function getPornstars()
     {
+        $this->parseIfNeeded();
+
         return $this->pornstars;
     }
 
+    /**
+     * @return array
+     */
     public function getCategories()
     {
+        $this->parseIfNeeded();
+
         return $this->categories;
     }
 
+    /**
+     * @return array
+     */
     public function getTags()
     {
+        $this->parseIfNeeded();
+
         return $this->tags;
     }
 
+    /**
+     * @return string
+     */
     public function getMp4()
     {
+        $this->parseIfNeeded();
+
         return $this->mp4;
     }
 
+    /**
+     * @return array
+     */
     public function toArray()
     {
         return [
@@ -64,9 +134,27 @@ class Video {
         ];
     }
 
+    /**
+     * @return string
+     */
     public function toJson()
     {
         return json_encode($this->toArray());
+    }
+
+    protected function parseIfNeeded()
+    {
+        if ($this->parsed) return;
+
+        $this->crawler = $this->client->request('GET', $this->getUrl());
+
+        $this->parseTitle();
+        $this->parsePornstars();
+        $this->parseCategories();
+        $this->parseTags();
+        $this->parseMp4();
+
+        $this->parsed = true;
     }
 
     protected function parseTitle()
@@ -76,40 +164,134 @@ class Video {
 
     protected function parsePornstars()
     {
-        $this->pornstars = $this->crawler->filter('.video-info-row:contains("Pornstars:") a:not(:contains("Suggest"))')->each(function($node) {
+        $this->pornstars = $this->crawler->filter('.video-info-row:contains("Pornstars:") a:not(:contains("Suggest"))')->each(function(Crawler $node) {
             return trim($node->text());
         });
     }
 
     protected function parseCategories()
     {
-        $this->categories = $this->crawler->filter('.video-info-row:contains("Categories:") a:not(:contains("Suggest"))')->each(function($node) {
+        $this->categories = $this->crawler->filter('.video-info-row:contains("Categories:") a:not(:contains("Suggest"))')->each(function(Crawler $node) {
             return trim($node->text());
         });
     }
 
     protected function parseTags()
     {
-        $this->tags = $this->crawler->filter('.video-info-row:contains("Tags:") a:not(:contains("Suggest"))')->each(function($node) {
+        $this->tags = $this->crawler->filter('.video-info-row:contains("Tags:") a:not(:contains("Suggest"))')->each(function(Crawler $node) {
             return trim($node->text());
         });
     }
 
     protected function parseMp4()
     {
-        preg_match('/var player_quality_720p = \'(?<mp4>.*?)\'/', $this->crawler->html(), $matches);
+        preg_match('/var player_quality_\d+p = \'(?<mp4>.*?)\'/', $this->crawler->html(), $matches);
         $this->mp4 = $matches['mp4'];
     }
 
 }
 
-$client = new Client;
+class Pornstar {
 
-$video = new Video($client, 'https://pornhub.com/view_video.php?viewkey=973043790');
-var_dump($video->getTitle());
-var_dump($video->getPornstars());
-var_dump($video->getCategories());
-var_dump($video->getTags());
-var_dump($video->getMp4());
-var_dump($video->toArray());
-var_dump($video->toJson());
+    /**
+     * @var Client
+     */
+    protected $client;
+
+    /**
+     * @var string
+     */
+    protected $url;
+
+    /**
+     * @var Crawler
+     */
+    protected $crawler;
+
+    /**
+     * @param Client $client
+     * @param string $url
+     */
+    public function __construct(Client $client, $url)
+    {
+        $this->client = $client;
+        $this->url = $url;
+        $this->crawler = $this->client->request('GET', $url);
+    }
+
+    /**
+     * @return string
+     */
+    public function getUrl()
+    {
+        return $this->url;
+    }
+
+    /**
+     * @return array
+     */
+    public function getVideoUrls()
+    {
+        return $this->crawler->filter('.videos .videoblock .title a')->each(function(Crawler $node) {
+            return $node->link()->getUri();
+        });
+    }
+
+    /**
+     * @return bool
+     */
+    public function hasNextPage()
+    {
+        return $this->crawler->filter('.pagination3 .page_next')->count() > 0 ? true : false;
+    }
+
+    public function goToNextPage()
+    {
+        $link = $this->crawler->filter('.pagination3 .page_next a')->link();
+        $this->crawler = $this->client->click($link);
+    }
+
+    /**
+     * @return array
+     */
+    public function getAllVideoUrls()
+    {
+        $urls = $this->getVideoUrls();
+
+        while ($this->hasNextPage()) {
+            $this->goToNextPage();
+            $urls = array_merge($urls, $this->getVideoUrls());
+        }
+
+        return $urls;
+    }
+
+    /**
+     * @return Video[]
+     */
+    public function getVideos()
+    {
+        return array_map(function($url) {
+            return new Video($this->client, $url);
+        }, $this->getVideoUrls());
+    }
+
+    /**
+     * @return Video[]
+     */
+    public function getAllVideos()
+    {
+        return array_map(function($url) {
+            return new Video($this->client, $url);
+        }, $this->getAllVideoUrls());
+    }
+
+}
+
+$client = new Client;
+$client->setHeader('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/44.0.2403.89 Chrome/44.0.2403.89 Safari/537.36');
+$pornstar = new Pornstar($client, 'http://www.pornhub.com/pornstar/madison-ivy');
+
+foreach ($pornstar->getAllVideos() as $video) {
+    echo $video->getTitle() . PHP_EOL;
+}
