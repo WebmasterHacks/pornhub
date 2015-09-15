@@ -2,4 +2,4 @@
 
 namespace WebmasterHacks\Pornhub;
 
-class Pornstar extends Taxonomy {}
+class TagCollection extends Collection {}

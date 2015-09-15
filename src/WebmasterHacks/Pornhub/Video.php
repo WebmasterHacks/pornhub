@@ -28,17 +28,17 @@ class Video
     protected $title;
 
     /**
-     * @var array
+     * @var PornstarCollection
      */
     protected $pornstars;
 
     /**
-     * @var Pornstar[]
+     * @var CategoryCollection
      */
     protected $categories;
 
     /**
-     * @var array
+     * @var TagCollection
      */
     protected $tags;
 
@@ -81,7 +81,7 @@ class Video
     }
 
     /**
-     * @return Pornstar[]
+     * @return PornstarCollection
      */
     public function pornstars()
     {
@@ -91,7 +91,7 @@ class Video
     }
 
     /**
-     * @return array
+     * @return CategoryCollection
      */
     public function categories()
     {
@@ -101,7 +101,7 @@ class Video
     }
 
     /**
-     * @return array
+     * @return TagCollection
      */
     public function tags()
     {
@@ -164,23 +164,35 @@ class Video
 
     protected function parsePornstars()
     {
-        $this->pornstars = $this->crawler->filter('.video-info-row:contains("Pornstars:") a:not(:contains("Suggest"))')->each(function(Crawler $node) {
-            return new Pornstar($this->client, $node->link()->getUri());
+        $pornstarCollection = new PornstarCollection;
+
+        $this->crawler->filter('.video-info-row:contains("Pornstars:") a:not(:contains("Suggest"))')->each(function(Crawler $node) use ($pornstarCollection) {
+            $pornstarCollection->add(new Pornstar($this->client, $node->link()->getUri()));
         });
+
+        $this->pornstars = $pornstarCollection;
     }
 
     protected function parseCategories()
     {
-        $this->categories = $this->crawler->filter('.video-info-row:contains("Categories:") a:not(:contains("Suggest"))')->each(function(Crawler $node) {
-            return trim($node->text());
+        $categoryCollection = new CategoryCollection;
+
+        $this->crawler->filter('.video-info-row:contains("Categories:") a:not(:contains("Suggest"))')->each(function(Crawler $node) use ($categoryCollection) {
+            $categoryCollection->add(new Category($this->client, $node->link()->getUri()));
         });
+
+        $this->categories = $categoryCollection;
     }
 
     protected function parseTags()
     {
-        $this->tags = $this->crawler->filter('.video-info-row:contains("Tags:") a:not(:contains("Suggest"))')->each(function(Crawler $node) {
-            return trim($node->text());
+        $tagCollection = new TagCollection;
+
+        $this->tags = $this->crawler->filter('.video-info-row:contains("Tags:") a:not(:contains("Suggest"))')->each(function(Crawler $node) use ($tagCollection) {
+            $tagCollection->add(new Tag($this->client, $node->link()->getUri()));
         });
+
+        $this->tags = $tagCollection;
     }
 
     protected function parseMp4()
