@@ -15,6 +15,11 @@ abstract class Taxonomy
     /**
      * @var string
      */
+    protected $title;
+
+    /**
+     * @var string
+     */
     protected $url;
 
     /**
@@ -24,14 +29,33 @@ abstract class Taxonomy
 
     /**
      * @param Client $client
+     * @param string $title
      * @param string $url
      */
-    public function __construct(Client $client, $url)
+    public function __construct(Client $client, $title, $url)
     {
         $this->client = $client;
+        $this->title = $title;
         $this->url = $url;
         $this->crawler = $this->client->request('GET', $url);
     }
+
+    /**
+     * @return string
+     */
+    public function getTitle()
+    {
+        return $this->title;
+    }
+
+    /**
+     * @param string $title
+     */
+    public function setTitle($title)
+    {
+        $this->title = $title;
+    }
+
 
     /**
      * @return string

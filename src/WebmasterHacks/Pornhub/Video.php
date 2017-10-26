@@ -142,62 +142,99 @@ class Video
         return json_encode($this->toArray());
     }
 
+    /**
+     * Run the parsers to extract data we need
+     * @throws \Exception
+     */
     protected function parseIfNeeded()
     {
-        if ($this->parsed) return;
+        try {
+            if ($this->parsed) {
+                return;
+            }
 
-        $this->crawler = $this->client->request('GET', $this->url());
+            $this->crawler = $this->client->request('GET', $this->url());
 
-        $this->parseTitle();
-        $this->parsePornstars();
-        $this->parseCategories();
-        $this->parseTags();
-        $this->parseMp4();
+            $this->parseTitle();
+            $this->parsePornstars();
+            $this->parseCategories();
+            $this->parseTags();
+            $this->parseMp4();
 
-        $this->parsed = true;
+            $this->parsed = true;
+        } catch (\Exception $exception) {
+            if ($exception instanceof \InvalidArgumentException) {
+                throw new \Exception($exception->getMessage() . " This usually indicates an incorrect video URL");
+            }
+            throw $exception;
+        }
     }
 
+    /**
+     *  Parse the Title
+     */
     protected function parseTitle()
     {
         $this->title = trim($this->crawler->filter('.video-wrapper .title-container .title')->first()->text());
     }
 
+    /**
+     *  Parse the actors/actresses found in the html body
+     */
     protected function parsePornstars()
     {
         $pornstarCollection = new PornstarCollection;
 
-        $this->crawler->filter('.video-info-row:contains("Pornstars:") a:not(:contains("Suggest"))')->each(function(Crawler $node) use ($pornstarCollection) {
-            $pornstarCollection->add(new Pornstar($this->client, $node->link()->getUri()));
+        $this->crawler->filter('.video-info-row:contains("Pornstars:") a:not(:contains("Suggest"))')->each(function (
+            Crawler $node
+        ) use ($pornstarCollection) {
+            $pornstarCollection->add(new Pornstar($this->client, trim(strip_tags($node->html())), $node->link()->getUri()));
         });
 
         $this->pornstars = $pornstarCollection;
     }
 
+    /**
+     *  Parse the categories found in the html body
+     */
     protected function parseCategories()
     {
         $categoryCollection = new CategoryCollection;
 
-        $this->crawler->filter('.video-info-row:contains("Categories:") a:not(:contains("Suggest"))')->each(function(Crawler $node) use ($categoryCollection) {
-            $categoryCollection->add(new Category($this->client, $node->link()->getUri()));
+        $this->crawler->filter('.video-info-row:contains("Categories:") a:not(:contains("Suggest"))')->each(function (
+            Crawler $node
+        ) use ($categoryCollection) {
+            $categoryCollection->add(new Category($this->client, trim(strip_tags($node->html())), $node->link()->getUri()));
         });
 
         $this->categories = $categoryCollection;
     }
 
+    /**
+     *  Parse the tags found in the html body
+     */
     protected function parseTags()
     {
         $tagCollection = new TagCollection;
 
-        $this->tags = $this->crawler->filter('.video-info-row:contains("Tags:") a:not(:contains("Suggest"))')->each(function(Crawler $node) use ($tagCollection) {
-            $tagCollection->add(new Tag($this->client, $node->link()->getUri()));
+        $this->tags = $this->crawler->filter('.video-info-row:contains("Tags:") a:not(:contains("Suggest"))')->each(function (
+            Crawler $node
+        ) use ($tagCollection) {
+            $tagCollection->add(new Tag($this->client, trim(strip_tags($node->html())), $node->link()->getUri()));
         });
 
         $this->tags = $tagCollection;
     }
 
+    /**
+     *  Attempt to find any mp4 links in the body
+     */
     protected function parseMp4()
     {
         preg_match('/var player_quality_\d+p = \'(?<mp4>.*?)\'/', $this->crawler->html(), $matches);
-        $this->mp4 = $matches['mp4'];
+        if (key_exists('mp4', $matches)) {
+            echo "How'd I get here?";
+            $this->mp4 = $matches['mp4'];
+        }
     }
 }
